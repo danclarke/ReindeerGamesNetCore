@@ -7,13 +7,28 @@ This code is a C# port of the Reindeer sample from: https://github.com/amzn/alex
 * Three
 * Four
 
-## Complete
+## The Projects
 
-* AWS Lambda Function implementation
-* Refactor code to something generic, removing hard dependencies on Alexa and Lambda
-* Basic unit tests
+## Alexa
 
-## Coming Later
+Core functionality for handling Alexa skills.
 
-* Azure web service / function implementation
-* Tidy up code a little more
+### ReindeerGames.Alexa
+
+The shared Alexa functionality, handles the communication with Alexa. But not specific hosting related implementation details.
+
+Has an associated test project too.
+
+### ReindeerGames.Alexa.Lambda
+
+AWS Lambda service for the Alexa skill & Reindeer Games game.
+
+### ReindeerGames.Alexa.AzureService
+
+Azure Web Service for the Alexa skill & Reindeer Games game. Uses Application Insights for logging, so you will need to hook up to an Insights key. Alternatively, you can amend / create a new logger that logs somewhere else - maybe even nowhere. The default logging implementation is 'InsightsLogger'.
+
+Full security has not yet been implemented on this service - beware!
+
+## Game
+
+The Reindeer Games game itself along with associated tests.

@@ -82,7 +82,6 @@ namespace ReindeerGames
         private readonly Random _rand = new Random();
 
         public int AnswerCount => AnswersPerQuestion;
-
         public int NumQuestions => QuestionList.Length;
 
         /// <summary>

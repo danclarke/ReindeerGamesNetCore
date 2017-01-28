@@ -1,13 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Slight.Alexa.Framework.Models.Requests;
 
-namespace ReindeerGames.Alexa.Lambda
+namespace ReindeerGames.Alexa
 {
+    // TODO: Revisit all of this conversion madness when json.net is out of beta for the version required by the Alexa lib
+
     /// <summary>
     /// ReindeerGames session handler for Alexa
     /// </summary>
@@ -41,7 +40,7 @@ namespace ReindeerGames.Alexa.Lambda
 
             var typeInfo = type.GetTypeInfo();
             if (typeInfo.IsValueType)
-                return GetValueType<T>(key, typeInfo);
+                return GetValueType<T>(key);
             else
                 return GetPoco<T>(key);
         }
@@ -73,11 +72,22 @@ namespace ReindeerGames.Alexa.Lambda
         /// </summary>
         /// <typeparam name="T">Value type</typeparam>
         /// <param name="key">Key for where object is in session</param>
-        /// <param name="typeInfo">Additional info on the type</param>
         /// <returns>Value</returns>
-        private T GetValueType<T>(string key, TypeInfo typeInfo)
+        private T GetValueType<T>(string key)
         {
+            // If a JValue try to just change the type
+            var jValue = _session.Attributes[key] as JValue;
+            if (jValue != null)
+            {
+                try
+                {
+                    return (T)Convert.ChangeType(jValue.Value, typeof(T));
+                }
+                catch (InvalidCastException) { }
+            }
+
             // Sometimes Int32 comes back as Int64, so try to handle that
+            // This is specific to Alexa, and doesn't appear locally
             if (typeof(T) == typeof(Int32))
             {
                 try

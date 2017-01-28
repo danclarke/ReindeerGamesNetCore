@@ -28,7 +28,7 @@ namespace ReindeeGames.Tests
 
             gameSession.CurrentQuestion.Should().BeSameAs(SampleQuestion);
             gameSession.Score.Should().Be(3);
-            gameSession.QuestionIndices.ShouldBeEquivalentTo(QuestionIndices);
+            gameSession.QuestionIndices.ShouldAllBeEquivalentTo(QuestionIndices);
         }
 
         [Fact]
@@ -50,7 +50,7 @@ namespace ReindeeGames.Tests
             var dictionary = gameSession.CreateSessionDictionary();
 
             dictionary["Score"].Should().Be(3);
-            dictionary["QuestionIndices"].ShouldBeEquivalentTo(QuestionIndices);
+            ((int[])dictionary["QuestionIndices"]).ShouldAllBeEquivalentTo(QuestionIndices);
             dictionary["CurrentQuestion"].Should().BeSameAs(SampleQuestion);
         }
 

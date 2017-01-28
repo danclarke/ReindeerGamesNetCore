@@ -15,7 +15,8 @@
       "version": "1.1.0-preview1"
     },
     "Slight.Alexa.Core": "1.0.10-beta",
-    "ReindeerGames": "1.0.0-*"
+    "ReindeerGames": "1.0.0-*",
+    "ReindeerGames.Alexa": "1.0.0-*"
   },
 
   "tools": {

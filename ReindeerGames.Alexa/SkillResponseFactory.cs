@@ -2,7 +2,7 @@
 using System.Linq;
 using Slight.Alexa.Framework.Models.Responses;
 
-namespace ReindeerGames.Alexa.Lambda
+namespace ReindeerGames.Alexa
 {
     using Response = Slight.Alexa.Framework.Models.Responses.Response;
 
@@ -22,7 +22,6 @@ namespace ReindeerGames.Alexa.Lambda
         /// Create the SkillResponse
         /// </summary>
         /// <param name="response">Response to user</param>
-        /// <param name="sessionAttributes">Attributes for the session</param>
         /// <returns>Skill Response</returns>
         public SkillResponse CreateSkillResponse(ReindeerGames.Response response)
         {
