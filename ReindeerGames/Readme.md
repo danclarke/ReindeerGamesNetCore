@@ -16,3 +16,7 @@ Thanks to some amazing work by the MS engineers on .NET Core, execution time is 
 ## AWS Toolkit
 
 You'll need the AWS toolkit to deploy this code: https://aws.amazon.com/visualstudio/
+
+## Thanks
+
+Special thanks to Tim Heuer for the excellent help with Alexa skills using .NET Core on AWS Lambda: http://timheuer.com/blog/archive/2016/12/12/amazon-alexa-skill-using-c-sharp-dotnet-core.aspx
