@@ -33,14 +33,156 @@ namespace ReindeerGames
     }
 
     /// <summary>
-    /// Hardcoded collection of all of the questions
+    /// Factory for questions to ask
     /// </summary>
-    public static class Questions
+    public interface IQuestionFactory
     {
+        /// <summary>
+        /// Number of answers per question for this factory
+        /// </summary>
+        int AnswerCount { get; }
+
+        /// <summary>
+        /// Total number of questions available via factory
+        /// </summary>
+        int NumQuestions { get; }
+
+        /// <summary>
+        /// Get information about a specific question
+        /// </summary>
+        /// <param name="questionIndex">Index of the question</param>
+        /// <returns>Question itself</returns>
+        Question GetQuestion(int questionIndex);
+
+        /// <summary>
+        /// Get the question specified, with randomised info ready for serialisation into the session
+        /// </summary>
+        /// <param name="questionIndex">Index of question</param>
+        /// <param name="questionNum">The number of this question to the user, starting from 1</param>
+        /// <returns>Question detail</returns>
+        SelectedQuestion GetQuestionSelection(int questionIndex, int questionNum);
+
+        /// <summary>
+        /// Get indices for all of the questions that should be asked in the current session
+        /// </summary>
+        /// <param name="numQuestions">Number of questions to return</param>
+        /// <returns>Question indices</returns>
+        int[] GetRandomQuestionIndices(int numQuestions);
+    }
+
+    /// <summary>
+    /// Factory for questions to ask
+    /// </summary>
+    public class QuestionFactory : IQuestionFactory
+    {
+        // Settings
+        private const int AnswersPerQuestion = 4;
+
+        // Dependencies
+        private readonly Random _rand = new Random();
+
+        public int AnswerCount => AnswersPerQuestion;
+
+        public int NumQuestions => QuestionList.Length;
+
+        /// <summary>
+        /// Get information about a specific question
+        /// </summary>
+        /// <param name="questionIndex">Index of the question</param>
+        /// <returns>Question itself</returns>
+        public Question GetQuestion(int questionIndex)
+        {
+            return QuestionList[questionIndex];
+        }
+
+        /// <summary>
+        /// Get the question specified, with randomised info ready for serialisation into the session
+        /// </summary>
+        /// <param name="questionIndex">Index of question</param>
+        /// <param name="questionNum">The number of this question to the user, starting from 1</param>
+        /// <returns>Question detail</returns>
+        public SelectedQuestion GetQuestionSelection(int questionIndex, int questionNum)
+        {
+            var validIndices = new List<int>(AnswerCount);
+            var shuffleIndices = new int[AnswerCount];
+            int correctIndex;
+
+            // Initially all AnswerCount locations are valid
+            for (int i = 0; i < AnswerCount; ++i)
+                validIndices.Add(i);
+
+            // Select the new position of the correct (first) answer
+            var index = _rand.Next(0, validIndices.Count);
+            correctIndex = validIndices[index];
+            shuffleIndices[0] = correctIndex;
+            validIndices.RemoveAt(index);
+
+            // Select positions for the remaining answers
+            for (int i = 1; i < AnswerCount; ++i)
+            {
+                index = _rand.Next(0, validIndices.Count);
+                shuffleIndices[i] = validIndices[index];
+                validIndices.RemoveAt(index);
+            }
+
+            // Return the selection info
+            return new SelectedQuestion
+            {
+                QuestionIndex = questionIndex,
+                AnswerShuffleIndices = shuffleIndices,
+                CorrectAnswerIndex = correctIndex,
+                QuestionNum = questionNum
+            };
+        }
+
+        /// <summary>
+        /// Get indices for all of the questions that should be asked in the current session
+        /// </summary>
+        /// <param name="numQuestions">Number of questions to return</param>
+        /// <returns>Question indices</returns>
+        public int[] GetRandomQuestionIndices(int numQuestions)
+        {
+            var indices = new int[numQuestions];
+
+            // Reset array
+            for (int i = 0; i < numQuestions; ++i)
+                indices[i] = -1;
+
+            // Populate array, no duplicates
+            for (int i = 0; i < numQuestions; ++i)
+            {
+                while (true)
+                {
+                    var index = _rand.Next(0, QuestionList.Length);
+
+                    // Check for duplicates
+                    bool duplicate = false;
+                    for (int j = 0; j < i; ++j)
+                    {
+                        if (indices[j] == index)
+                        {
+                            duplicate = true;
+                            break;
+                        }
+                    }
+
+                    if (duplicate)
+                        continue;
+
+                    // Not a duplicate, add to list
+                    indices[i] = index;
+                    break;
+                }
+            }
+
+            // All done!
+            return indices;
+        }
+
         /// <summary>
         /// Array of all of the possible questions
         /// </summary>
-        public static Question[] QuestionList =
+        private static readonly Question[] QuestionList =
         {
             new Question("Reindeer have very thick coats, how many hairs per square inch do they have?", new[]
             {
@@ -48,8 +190,6 @@ namespace ReindeerGames
                 "1,200",
                 "5,000",
                 "700",
-                "1,000",
-                "120,000"
             }),
             new Question("The 1964 classic Rudolph The Red Nosed Reindeer was filmed in:", new[]
             {
@@ -256,6 +396,5 @@ namespace ReindeerGames
                 "14 miles per hour"
             })
         };
-
     }
 }

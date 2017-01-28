@@ -25,7 +25,6 @@ namespace ReindeerGames
     {
         // Settings
         private const int GameLength = 5;
-        private const int AnswerCount = 4;
         private const string CardTitle = "Reindeer Games";
 
         // Slots
@@ -45,7 +44,7 @@ namespace ReindeerGames
         // Dependencies
         private readonly ISession _session;
         private readonly ILogger _log;
-        private readonly Random _rand = new Random();
+        private readonly IQuestionFactory _questionFactory;
 
         // State
         private readonly ReindeerGameSession _gameSession;
@@ -55,9 +54,11 @@ namespace ReindeerGames
         /// </summary>
         /// <param name="session">Session from voice service</param>
         /// <param name="log">Logger to use for logging</param>
-        public ReindeerGame(ISession session, ILogger log)
+        /// <param name="questionFactory">Question Factory to use for questions</param>
+        public ReindeerGame(ISession session, ILogger log, IQuestionFactory questionFactory)
         {
             _log = log;
+            _questionFactory = questionFactory;
             _session = session;
             _gameSession = new ReindeerGameSession(session, _log);
         }
@@ -143,7 +144,7 @@ namespace ReindeerGames
                 _log.LogLine("Answer not valid, prompting user to be more intelligent");
 
                 var repeatQuestionText = GetQuestionPromptText(_gameSession.CurrentQuestion);
-                var message = $"Your answer must be a number between 1 and {AnswerCount}. " + repeatQuestionText;
+                var message = $"Your answer must be a number between 1 and {_questionFactory.AnswerCount}. " + repeatQuestionText;
                 return new Response(message, repeatQuestionText, CardTitle, message, _gameSession.CreateSessionDictionary());
             }
 
@@ -182,8 +183,8 @@ namespace ReindeerGames
             var speechOutput = new StringBuilder(
                 $"I will ask you {GameLength} questions, try to get as many right as you can. Just say the number of the answer. Let's begin. ");
 
-            var sessionQuestions = GetGameQuestionIndices();
-            var firstQuestion = GetQuestion(sessionQuestions[0], 1);
+            var sessionQuestions = _questionFactory.GetRandomQuestionIndices(GameLength);
+            var firstQuestion = _questionFactory.GetQuestionSelection(sessionQuestions[0], 1);
             var questionText = GetQuestionPromptText(firstQuestion);
 
             // Ask question straight away
@@ -217,9 +218,9 @@ namespace ReindeerGames
             else
             {
                 var answerText =
-                    Questions.QuestionList[_gameSession.CurrentQuestion.QuestionIndex]
-                                .Answers[_gameSession.CurrentQuestion.AnswerShuffleIndices[
-                                         _gameSession.CurrentQuestion.CorrectAnswerIndex]];
+                    _questionFactory.GetQuestion(_gameSession.CurrentQuestion.QuestionIndex)
+                        .Answers[_gameSession.CurrentQuestion.AnswerShuffleIndices[
+                            _gameSession.CurrentQuestion.CorrectAnswerIndex]];
                 output.AppendFormat("Incorrect. The correct answer was {0}. {1}. ", _gameSession.CurrentQuestion.CorrectAnswerIndex + 1, answerText);
             }
 
@@ -246,10 +247,10 @@ namespace ReindeerGames
         /// </summary>
         /// <param name="questionSelection">The question that's currently selected</param>
         /// <returns>Spoken text for question</returns>
-        private static string GetQuestionPromptText(SelectedQuestion questionSelection)
+        private string GetQuestionPromptText(SelectedQuestion questionSelection)
         {
             var builder = new StringBuilder();
-            var question = Questions.QuestionList[questionSelection.QuestionIndex];
+            var question = _questionFactory.GetQuestion(questionSelection.QuestionIndex);
 
             // Question text
             builder.AppendFormat("Question {0}. ", questionSelection.QuestionNum);
@@ -257,7 +258,7 @@ namespace ReindeerGames
             builder.Append(" ");
 
             // Question answers
-            for (int i = 0; i < AnswerCount; ++i)
+            for (int i = 0; i < _questionFactory.AnswerCount; ++i)
             {
                 var answer = question.Answers[questionSelection.AnswerShuffleIndices[i]];
                 var answerNum = i + 1;
@@ -266,46 +267,6 @@ namespace ReindeerGames
 
             // Return text
             return builder.ToString();
-        }
-
-        /// <summary>
-        /// Get the question specified, with randomised info ready for serialisation into the session
-        /// </summary>
-        /// <param name="questionIndex">Index of question</param>
-        /// <param name="questionNum">The number of this question to the user, starting from 1</param>
-        /// <returns>Question detail</returns>
-        private SelectedQuestion GetQuestion(int questionIndex, int questionNum)
-        {
-            var validIndices = new List<int>(AnswerCount);
-            var shuffleIndices = new int[AnswerCount];
-            int correctIndex;
-            
-            // Initially all AnswerCount locations are valid
-            for (int i = 0; i < AnswerCount; ++i)
-                validIndices.Add(i);
-
-            // Select the new position of the correct (first) answer
-            var index = _rand.Next(0, validIndices.Count);
-            correctIndex = validIndices[index];
-            shuffleIndices[0] = correctIndex;
-            validIndices.Remove(index);
-
-            // Select positions for the reamining answers
-            for (int i = 1; i < AnswerCount; ++i)
-            {
-                index = _rand.Next(0, validIndices.Count);
-                shuffleIndices[i] = validIndices[index];
-                validIndices.Remove(index);
-            }
-
-            // Return the selection info
-            return new SelectedQuestion
-            {
-                QuestionIndex = questionIndex,
-                AnswerShuffleIndices = shuffleIndices,
-                CorrectAnswerIndex = correctIndex,
-                QuestionNum = questionNum
-            };
         }
 
         /// <summary>
@@ -321,50 +282,7 @@ namespace ReindeerGames
                 return null;
 
             var questionIndex = _gameSession.QuestionIndices[nextIndex];
-            return GetQuestion(questionIndex, current.QuestionNum + 1);
-        }
-
-        /// <summary>
-        /// Get indices for all of the questions that should be asked in the current session
-        /// </summary>
-        /// <returns>Question indices</returns>
-        private int[] GetGameQuestionIndices()
-        {
-            var indices = new int[GameLength];
-
-            // Reset array
-            for (int i = 0; i < GameLength; ++i)
-                indices[i] = -1;
-
-            // Populate array, no duplicates
-            for (int i = 0; i < GameLength; ++i)
-            {
-                while (true)
-                {
-                    var index = _rand.Next(0, Questions.QuestionList.Length);
-
-                    // Check for duplicates
-                    bool duplicate = false;
-                    for (int j = 0; j < i; ++j)
-                    {
-                        if (indices[j] == index)
-                        {
-                            duplicate = true;
-                            break;
-                        }
-                    }
-
-                    if (duplicate)
-                        continue;
-
-                    // Not a duplicate, add to list
-                    indices[i] = index;
-                    break;
-                }
-            }
-
-            // All done!
-            return indices;
+            return _questionFactory.GetQuestionSelection(questionIndex, current.QuestionNum + 1);
         }
 
         /// <summary>
@@ -393,7 +311,7 @@ namespace ReindeerGames
                 return null;
 
             // Validate correct range
-            if (answer > 0 && answer <= AnswerCount)
+            if (answer > 0 && answer <= _questionFactory.AnswerCount)
                 return answer;
 
             // Couldn't get anything worthwhile

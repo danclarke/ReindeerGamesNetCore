@@ -21,6 +21,10 @@ namespace ReindeerGames.Alexa.Lambda
         /// </summary>
         private const string ApplicationId = "amzn1.ask.skill.75a8b73f-80e5-4bca-b4a0-b5c49bc2334d";
 
+        // Global dependencies
+        private static readonly IQuestionFactory QuestionFactory = new QuestionFactory();
+        private static readonly SkillResponseFactory ResponseFactory = new SkillResponseFactory();
+
         /// <summary>
         /// A simple function that takes a string and does a ToUpper
         /// </summary>
@@ -38,16 +42,15 @@ namespace ReindeerGames.Alexa.Lambda
                 throw new InvalidOperationException("Unsupported request");
 
             // Hand off to game to do magic
-            var responseFactory = new SkillResponseFactory();
             var session = new AlexaSession(input.Session);
             var logger = new LambdaLogger(context.Logger);
             var arguments = GetArguments(input, context.Logger);
-            var game = new ReindeerGame(session, logger);
+            var game = new ReindeerGame(session, logger, QuestionFactory);
 
             try
             {
                 var response = game.Execute(requestType.Value, arguments);
-                return responseFactory.CreateSkillResponse(response);
+                return ResponseFactory.CreateSkillResponse(response);
             }
             catch (Exception e)
             {
