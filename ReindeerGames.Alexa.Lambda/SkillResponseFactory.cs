@@ -1,60 +1,57 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using Slight.Alexa.Framework.Models.Responses;
 
-namespace ReindeerGames
+namespace ReindeerGames.Alexa.Lambda
 {
+    using Response = Slight.Alexa.Framework.Models.Responses.Response;
+
     public interface ISkillResponseFactory
     {
         /// <summary>
-        /// Create the basic response to the user
+        /// Create the SkillResponse
         /// </summary>
-        /// <param name="title">Title of the card displayed on the mobile device</param>
-        /// <param name="outputText">Spoken text to the user</param>
-        /// <param name="repromptText">Spoken text to the user if they don't respond promptly</param>
-        /// <param name="shouldEndSession">Whether this response finishes the session / game</param>
-        /// <returns>Core response</returns>
-        Response CreateCoreResponse(
-            string title,
-            string outputText,
-            string repromptText,
-            bool shouldEndSession = false);
+        /// <param name="response">Response to user</param>
+        /// <returns>Skill Response</returns>
+        SkillResponse CreateSkillResponse(ReindeerGames.Response response);
+    }
 
-        /// <summary>
-        /// Create the basic response to the user, without generating a card that will be displayed on the user's mobile device
-        /// </summary>
-        /// <param name="outputText">Spoken text to the user</param>
-        /// <param name="repromptText">Spoken text to the user if they don't respond promptly</param>
-        /// <param name="shouldEndSession">Whether this response finishes the session / game</param>
-        /// <returns>Core response</returns>
-        Response CreateCoreResponseNoCard(
-            string outputText,
-            string repromptText,
-            bool shouldEndSession = false);
-
+    public class SkillResponseFactory : ISkillResponseFactory
+    {
         /// <summary>
         /// Create the SkillResponse
         /// </summary>
         /// <param name="response">Response to user</param>
         /// <param name="sessionAttributes">Attributes for the session</param>
         /// <returns>Skill Response</returns>
-        SkillResponse CreateSkillResponse(Response response, Dictionary<string, object> sessionAttributes = null);
-    }
+        public SkillResponse CreateSkillResponse(ReindeerGames.Response response)
+        {
+            // Get the response applicable for card / no card
+            var coreResponse = !string.IsNullOrWhiteSpace(response.CardTitle) 
+                ? CreateCoreResponse(response.CardTitle, response.CardText, response.SpokenResponse, response.SpokenReprompt, response.EndSession) 
+                : CreateCoreResponseNoCard(response.SpokenResponse, response.SpokenReprompt, response.EndSession);
 
-    public class SkillResponseFactory : ISkillResponseFactory
-    {
+            // If we don't want to send any session stuff, should return NULL
+            var sessionValues = response.SessionValues.Any()
+                ? response.SessionValues
+                : null;
+
+            // Create the actual response
+            return CreateSkillResponse(coreResponse, sessionValues);
+        }
+
         /// <summary>
         /// Create the basic response to the user
         /// </summary>
         /// <param name="title">Title of the card displayed on the mobile device</param>
+        /// <param name="cardText">Text for the card</param>
         /// <param name="outputText">Spoken text to the user</param>
         /// <param name="repromptText">Spoken text to the user if they don't respond promptly</param>
         /// <param name="shouldEndSession">Whether this response finishes the session / game</param>
         /// <returns>Core response</returns>
-        public Response CreateCoreResponse(
+        private static Response CreateCoreResponse(
             string title,
+            string cardText,
             string outputText,
             string repromptText,
             bool shouldEndSession = false)
@@ -62,7 +59,7 @@ namespace ReindeerGames
             var card = new SimpleCard
             {
                 Title = title,
-                Content = outputText
+                Content = cardText
             };
 
             return new Response()
@@ -90,7 +87,7 @@ namespace ReindeerGames
         /// <param name="repromptText">Spoken text to the user if they don't respond promptly</param>
         /// <param name="shouldEndSession">Whether this response finishes the session / game</param>
         /// <returns>Core response</returns>
-        public Response CreateCoreResponseNoCard(
+        private static Response CreateCoreResponseNoCard(
             string outputText,
             string repromptText,
             bool shouldEndSession = false)
@@ -118,7 +115,7 @@ namespace ReindeerGames
         /// <param name="response">Response to user</param>
         /// <param name="sessionAttributes">Attributes for the session</param>
         /// <returns>Skill Response</returns>
-        public SkillResponse CreateSkillResponse(Response response, Dictionary<string, object> sessionAttributes = null)
+        private static SkillResponse CreateSkillResponse(Response response, Dictionary<string, object> sessionAttributes = null)
         {
             return new SkillResponse
             {

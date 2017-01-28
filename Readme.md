@@ -10,9 +10,10 @@ This code is a C# port of the Reindeer sample from: https://github.com/amzn/alex
 ## Complete
 
 * AWS Lambda Function implementation
+* Refactor code to something generic, removing hard dependencies on Alexa and Lambda
 
 ## Coming Later
 
 * Azure web service / function implementation
-* Tidy up / refactor code to something more generic
+* Tidy up code a little more
 * Unit tests

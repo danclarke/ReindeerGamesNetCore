@@ -2,9 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Amazon.Lambda.Core;
-using Newtonsoft.Json.Linq;
-using Slight.Alexa.Framework.Models.Requests;
 
 namespace ReindeerGames
 {
@@ -30,17 +27,17 @@ namespace ReindeerGames
         /// </summary>
         public int Score { get; set; }
 
-        public ReindeerGameSession(Session session, ILambdaLogger logger)
+        public ReindeerGameSession(ISession session, ILogger logger)
         {
-            // Load in session data
-            object questionObj = null;
-            if (session?.Attributes?.TryGetValue(KeyCurrentQuestion, out questionObj) ?? false)
+            CurrentQuestion = session.GetObject<SelectedQuestion>(KeyCurrentQuestion);
+
+            // Load in rest of session data
+            if (CurrentQuestion != null)
             {
                 logger.LogLine("Restoring session...");
 
-                CurrentQuestion = ((JObject)questionObj).ToObject<SelectedQuestion>();
-                Score = (int)(Int64)session.Attributes[KeyScore]; // Comes back as 64bit, don't know why...
-                QuestionIndices = ((JArray)session.Attributes[KeyQuestionIndices]).ToObject<int[]>();
+                Score = session.GetObject<int>(KeyScore);
+                QuestionIndices = session.GetObject<int[]>(KeyQuestionIndices);
             }
         }
 

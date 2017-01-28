@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
 using System.Text;
-using Amazon.Lambda.Core;
-using Slight.Alexa.Framework.Models.Requests;
-using Slight.Alexa.Framework.Models.Requests.RequestTypes;
-using Slight.Alexa.Framework.Models.Responses;
 
 namespace ReindeerGames
 {
@@ -13,8 +11,10 @@ namespace ReindeerGames
         /// <summary>
         /// Execute the request
         /// </summary>
+        /// <param name="request">Type of request from user</param>
+        /// <param name="arguments">Arguments received from user, if any</param>
         /// <returns>Response to user / Alexa</returns>
-        SkillResponse Execute();
+        Response Execute(RequestType request, Argument[] arguments);
     }
 
     /// <summary>
@@ -29,7 +29,7 @@ namespace ReindeerGames
         private const string CardTitle = "Reindeer Games";
 
         // Slots
-        private const string SlotAnswer = "Answer";
+        private const string SlotAnswer = "ANSWER";
 
         /// <summary>
         /// String answers. Key = Answer from user, Value = Numeric value
@@ -43,9 +43,8 @@ namespace ReindeerGames
         };
 
         // Dependencies
-        private readonly ISkillResponseFactory _responseFactory;
-        private readonly SkillRequest _request;
-        private readonly ILambdaLogger _log;
+        private readonly ISession _session;
+        private readonly ILogger _log;
         private readonly Random _rand = new Random();
 
         // State
@@ -54,117 +53,67 @@ namespace ReindeerGames
         /// <summary>
         /// Constructor
         /// </summary>
-        /// <param name="input">Request from Alexa</param>
-        /// <param name="context">AWS Lambda context</param>
-        /// <param name="responseFactory">Factory to generate an Alexa response</param>
-        public ReindeerGame(SkillRequest input, ILambdaContext context, ISkillResponseFactory responseFactory)
+        /// <param name="session">Session from voice service</param>
+        /// <param name="log">Logger to use for logging</param>
+        public ReindeerGame(ISession session, ILogger log)
         {
-            _request = input;
-            _responseFactory = responseFactory;
-            _log = context.Logger;
-            _gameSession = new ReindeerGameSession(input.Session, _log);
+            _log = log;
+            _session = session;
+            _gameSession = new ReindeerGameSession(session, _log);
         }
 
         /// <summary>
         /// Execute the request
         /// </summary>
+        /// <param name="request">Type of request from user</param>
+        /// <param name="arguments">Arguments received from user, if any</param>
         /// <returns>Response to user / Alexa</returns>
-        public SkillResponse Execute()
+        public Response Execute(RequestType request, Argument[] arguments)
         {
-            if (_request.Session.New)
-                SessionStarted(_request.Request.RequestId, _request.Session);
-
-            _log.LogLine($"Received '{_request.Request.Type}' request");
-
-            var requestType = _request.GetRequestType();
-
-            if (requestType == typeof(ILaunchRequest))
-                return GetWelcomeResponse();
-
-            if (requestType == typeof(IIntentRequest))
-                return HandleIntent(_request.Request, _request.Session);
-
-            if (requestType == typeof(ISessionEndedRequest))
+            switch (request)
             {
-                SessionEnded(_request.Request.RequestId, _request.Session);
-                return null;
+                case RequestType.LaunchGame:
+                    return GetWelcomeResponse();
+
+                case RequestType.EndGame:
+                    return FinishGame();
+
+                case RequestType.AnswerYes:
+                case RequestType.AnswerNo:
+                case RequestType.AnswerDontKnow:
+                case RequestType.AnswerGeneric:
+                    return ProcessAnswer(arguments);
+
+                case RequestType.AnswerRepeat:
+                    return RepeatLastInstructions();
+
+                case RequestType.AnswerHelp:
+                    return GetHelp();
+
+                default:
+                    _log.LogLine("Unexpected request type: " + request);
+                    throw new InvalidOperationException("Unexpected launch type: " + request);
             }
-
-            _log.LogLine("Unexpected request type: " + _request.Request.Type);
-            throw new InvalidOperationException("Unexpected launch type: " + _request.Request.Type);
-        }
-
-        private void SessionStarted(string requestId, Session session)
-        {
-            _log.LogLine($"Session started ID '{requestId}', Session ID '{session.SessionId}'");
-        }
-
-        private void SessionEnded(string requestId, Session session)
-        {
-            _log.LogLine($"Session ended ID '{requestId}', Session ID '{session.SessionId}'");
         }
 
         /// <summary>
         /// Finish the game, close off the session
         /// </summary>
-        /// <param name="session">Current session</param>
         /// <returns>Response to user</returns>
-        private SkillResponse FinishGame(Session session)
+        private Response FinishGame()
         {
-            _log.LogLine($"Finishing game with session '{session.SessionId}'");
+            _log.LogLine($"Finishing game with session '{_session.Id}'");
 
-            return _responseFactory.CreateSkillResponse(_responseFactory.CreateCoreResponseNoCard("Good bye!", string.Empty, true));
+            return new Response("Good bye!", endSession: true);
         }
 
-        /// <summary>
-        /// Trigger the correct code depending on what the user asked for
-        /// </summary>
-        /// <param name="request">User request</param>
-        /// <param name="session">Current session</param>
-        /// <returns>Response to user</returns>
-        private SkillResponse HandleIntent(IIntentRequest request, Session session)
+        private Response RepeatLastInstructions()
         {
-            _log.LogLine($"Handling '{request.Intent.Name}' intent with ID '{request.RequestId}', Session ID '{session.SessionId}'");
-
-            // We'll hardcode the string values here since they're in on place
-            // If they need to be used elsewhere this code will need refactoring
-            switch (request.Intent.Name)
-            {
-                case "AnswerIntent":
-                case "AnswerOnlyIntent":
-                case "DontKnowIntent":
-                case "AMAZON.YesIntent":
-                case "AMAZON.NoIntent":
-                    return ProcessAnswer(request, session);
-
-                case "AMAZON.StartOverIntent":
-                    return GetWelcomeResponse();
-
-                case "AMAZON.RepeatIntent":
-                    return RepeatLastInstructions(request.RequestId, session);
-
-                case "AMAZON.HelpIntent":
-                    return GetHelp(request.RequestId, session);
-
-                case "AMAZON.StopIntent":
-                case "AMAZON.CancelIntent":
-                    return FinishGame(session);
-
-                default:
-                    _log.LogLine("Unexpected intent: " + request.Intent.Name);
-                    throw new InvalidOperationException("Unexpected intent: " + request.Intent.Name);
-            }
-        }
-
-        private SkillResponse RepeatLastInstructions(string requestId, Session session)
-        {
-            _log.LogLine($"Repeating last instructions with ID '{requestId}', Session ID '{session.SessionId}'");
-
             // See if we've already got a question good to go, if so repeat i
             if (_gameSession.IsGameInProgress())
             {
                 var questionText = GetQuestionPromptText(_gameSession.CurrentQuestion);
-                return _responseFactory.CreateSkillResponse(_responseFactory.CreateCoreResponseNoCard(questionText, questionText), session.Attributes);
+                return new Response(questionText, questionText, _gameSession.CreateSessionDictionary());
             }
 
             // No question, start anew
@@ -174,12 +123,11 @@ namespace ReindeerGames
         /// <summary>
         /// Process a mid-game answer from the user
         /// </summary>
-        /// <param name="request">User's answer</param>
-        /// <param name="session">Current session</param>
+        /// <param name="arguments">User provided data</param>
         /// <returns>Response to user</returns>
-        private SkillResponse ProcessAnswer(IIntentRequest request, Session session)
+        private Response ProcessAnswer(IEnumerable<Argument> arguments)
         {
-            _log.LogLine($"Processing answer from user with ID '{request.RequestId}', Session ID '{session.SessionId}'");
+            _log.LogLine($"Processing answer from user with Session ID '{_session.Id}'");
 
             // If no game in progress, can't really process the answer....
             if (!_gameSession.IsGameInProgress())
@@ -189,14 +137,14 @@ namespace ReindeerGames
             }
 
             // Validate answer from user
-            var answer = GetAnswerNum(request.Intent);
+            var answer = GetAnswerNum(arguments);
             if (answer == null)
             {
                 _log.LogLine("Answer not valid, prompting user to be more intelligent");
 
                 var repeatQuestionText = GetQuestionPromptText(_gameSession.CurrentQuestion);
                 var message = $"Your answer must be a number between 1 and {AnswerCount}. " + repeatQuestionText;
-                return _responseFactory.CreateSkillResponse(_responseFactory.CreateCoreResponse(CardTitle, message, repeatQuestionText), session.Attributes);
+                return new Response(message, repeatQuestionText, CardTitle, message, _gameSession.CreateSessionDictionary());
             }
 
             // Process the answer and get the next question
@@ -208,7 +156,8 @@ namespace ReindeerGames
             {
                 _log.LogLine("No more questions, game end");
                 response.AppendFormat("You got {0} out of {1} questions correct. Thank you for playing!", _gameSession.Score, GameLength);
-                return _responseFactory.CreateSkillResponse(_responseFactory.CreateCoreResponse(CardTitle, response.ToString(), string.Empty, true));
+                var message = response.ToString();
+                return new Response(message, null, CardTitle, message, endSession: true);
             }
 
             // Move on to the next question.
@@ -217,17 +166,16 @@ namespace ReindeerGames
             _gameSession.CurrentQuestion = question;
             var questionText = GetQuestionPromptText(_gameSession.CurrentQuestion);
             response.Append(questionText);
+            var responseText = response.ToString();
 
-            return _responseFactory.CreateSkillResponse(
-                _responseFactory.CreateCoreResponse(CardTitle, response.ToString(), questionText),
-                _gameSession.CreateSessionDictionary());
+            return new Response(responseText, questionText, CardTitle, responseText, _gameSession.CreateSessionDictionary());
         }
 
         /// <summary>
         /// Initialise a brand new game
         /// </summary>
         /// <returns>Response to user</returns>
-        private SkillResponse GetWelcomeResponse()
+        private Response GetWelcomeResponse()
         {
             _log.LogLine("Starting a new game");
 
@@ -247,9 +195,8 @@ namespace ReindeerGames
             _gameSession.QuestionIndices = sessionQuestions;
 
             // Create the response and return
-            return _responseFactory.CreateSkillResponse(
-                _responseFactory.CreateCoreResponse(CardTitle, speechOutput.ToString(), questionText),
-                _gameSession.CreateSessionDictionary());
+            var speechText = speechOutput.ToString();
+            return new Response(speechText, questionText, CardTitle, speechText, _gameSession.CreateSessionDictionary());
         }
 
         /// <summary>
@@ -283,17 +230,15 @@ namespace ReindeerGames
         /// Output help to the user
         /// </summary>
         /// <returns>Help message</returns>
-        private SkillResponse GetHelp(string requestId, Session session)
+        private Response GetHelp()
         {
-            _log.LogLine($"Speaking help with ID '{requestId}', Session ID '{session.SessionId}'");
+            _log.LogLine($"Speaking help with Session ID '{_session.Id}'");
 
             var message = $"I will ask you {GameLength} multiple choice questions. Respond with the number of the answer. For example, say one, two, three, or four. To start a new game at any time, say, start game. To repeat the last question, say, repeat. Would you like to keep playing?";
 
             const string repromptMessage = "To give an answer to a question, respond with the number of the answer. Would you like to keep playing?";
 
-            return _responseFactory.CreateSkillResponse(
-                _responseFactory.CreateCoreResponseNoCard(message, repromptMessage), 
-                session.Attributes);
+            return new Response(message, repromptMessage, _gameSession.CreateSessionDictionary());
         }
 
         /// <summary>
@@ -425,33 +370,31 @@ namespace ReindeerGames
         /// <summary>
         /// Get the answer from the user, or NULL if not valid
         /// </summary>
-        /// <param name="intent">Intent from user</param>
+        /// <param name="arguments">Values from the user</param>
         /// <returns>Answer or NULL if not valid</returns>
-        private int? GetAnswerNum(Intent intent)
+        private int? GetAnswerNum(IEnumerable<Argument> arguments)
         {
-            Slot slot = null;
-            if (intent?.Slots.TryGetValue(SlotAnswer, out slot) ?? false)
-            {
-                // No value!
-                if (string.IsNullOrWhiteSpace(slot?.Value))
-                    return null;
+            var argument = arguments.FirstOrDefault(a => a.Name.ToUpperInvariant() == SlotAnswer);
 
-                _log.LogLine("Processing answer: " + slot.Value);
+            // No value!
+            if (string.IsNullOrWhiteSpace(argument?.Value))
+                return null;
 
-                // Check against string values
-                int answer;
-                var upperValue = slot.Value.ToUpperInvariant();
-                if (AnswerLookup.TryGetValue(upperValue, out answer))
-                    return answer;
+            _log.LogLine("Processing answer: " + argument.Value);
 
-                // Try and convert to int
-                if (!int.TryParse(slot.Value, out answer))
-                    return null;
+            // Check against string values
+            int answer;
+            var upperValue = argument.Value.ToUpperInvariant();
+            if (AnswerLookup.TryGetValue(upperValue, out answer))
+                return answer;
 
-                // Validate correct range
-                if (answer > 0 && answer <= AnswerCount)
-                    return answer;
-            }
+            // Try and convert to int
+            if (!int.TryParse(argument.Value, out answer))
+                return null;
+
+            // Validate correct range
+            if (answer > 0 && answer <= AnswerCount)
+                return answer;
 
             // Couldn't get anything worthwhile
             return null;
