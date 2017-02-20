@@ -1,6 +1,6 @@
 # Reindeer Games
 
-This code is a C# port of the Reindeer sample from: https://github.com/amzn/alexa-skills-kit-json. For better accuracy I found it best to add the following text answers to the answer list:
+This code is a C# port of the Reindeer sample from: https://github.com/amzn/alexa-skills-kit-js/tree/deprecated. For better accuracy I found it best to add the following text answers to the answer list:
 
 * One
 * Two
